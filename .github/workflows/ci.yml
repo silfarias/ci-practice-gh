@@ -1,24 +1,79 @@
-name: CI Node
+name: CI Node Professional
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix: # matrix no es “más pasos”, es “más ejecuciones del mismo job con parámetros distintos”.
+        node-version: [18, 20]
+
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar Node
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.20.0
+          node-version: ${{ matrix.node-version }}
+          cache: npm # optimizacion de velocidad
 
       - name: Instalar dependencias
         run: npm ci
 
       - name: Ejecutar tests
         run: npm test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar build
+        run: |
+          mkdir -p dist
+          echo "Build generado correctamente" > dist/app.txt
+          echo "Fecha: $(date)" >> dist/app.txt
+
+      - name: Subir artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Descargar artifact
+        uses: actions/download-artifact@v4 # resultado generado por un job que quieres conservar o pasar a otro job
+        with:
+          name: app-build
+          path: dist/
+
+      - name: Mostrar contenido del artifact
+        run: cat dist/app.txt
+
+      - name: Deploy simulado
+        run: echo "Deploy realizado correctamente en entorno simulado"
